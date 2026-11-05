@@ -1,0 +1,6 @@
+{
+  "name": "ytremote",
+  "description": "Premium YouTube TV Remote Control for Windows PC",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

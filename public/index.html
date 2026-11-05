@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ytremote Pro - Mobile App & Web Remote</title>
+    <style>
+        :root {
+            --bg-dark: #0a0e17;
+            --card-bg: #111a2e;
+            --accent-cyan: #00e5ff;
+            --primary-blue: #2563eb;
+            --accent-hover: #00b4d8;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --border-color: rgba(0, 229, 255, 0.25);
+            --border-highlight: rgba(0, 229, 255, 0.6);
+            --success: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(135deg, rgba(37,99,235,0.2) 0%, rgba(0,229,255,0.1) 100%);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 14px 18px;
+            backdrop-filter: blur(8px);
+        }
+
+        .app-title {
+            font-size: 1.25rem;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            background: linear-gradient(90deg, #ffffff, var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .version-badge {
+            font-size: 0.75rem;
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+            border: 1px solid var(--success);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: 700;
+        }
+
+        /* Download Card */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-desc {
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .btn-download {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            background: linear-gradient(135deg, var(--primary-blue), var(--accent-hover));
+            color: #ffffff;
+            text-decoration: none;
+            padding: 14px 20px;
+            border-radius: 14px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-download:active {
+            transform: scale(0.98);
+        }
+
+        .instructions {
+            margin-top: 16px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 14px;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            color: #cbd5e1;
+        }
+
+        .instructions h4 {
+            color: var(--accent-cyan);
+            margin-bottom: 6px;
+            font-size: 0.92rem;
+        }
+
+        .instructions ol {
+            padding-left: 20px;
+        }
+
+        .instructions li {
+            margin-bottom: 4px;
+        }
+
+        /* Remote Interface Section */
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .section-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+        }
+
+        /* Connection Bar */
+        .conn-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .conn-bar input {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-color);
+            color: #fff;
+            padding: 10px 12px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            outline: none;
+        }
+
+        .conn-bar input:focus {
+            border-color: var(--accent-cyan);
+        }
+
+        .input-ip { flex: 2; }
+        .input-pin { flex: 1; }
+
+        /* Touchpad */
+        .touchpad {
+            height: 170px;
+            background: linear-gradient(180deg, #162036 0%, #0d1527 100%);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            touch-action: none;
+            cursor: pointer;
+            position: relative;
+            box-shadow: inset 0 2px 8px rgba(0,0,0,0.4);
+        }
+
+        .touchpad:active {
+            border-color: var(--accent-cyan);
+        }
+
+        .touchpad-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            pointer-events: none;
+        }
+
+        /* D-Pad & Controls Grid */
+        .dpad-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 14px 0;
+            align-items: center;
+            justify-items: center;
+        }
+
+        .btn-round {
+            width: 58px;
+            height: 58px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            border: 1px solid var(--border-color);
+            color: #f1f5f9;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            transition: all 0.1s ease;
+        }
+
+        .btn-round:active {
+            transform: scale(0.92);
+            border-color: var(--accent-cyan);
+            background: var(--primary-blue);
+        }
+
+        .btn-ok {
+            background: linear-gradient(135deg, var(--primary-blue), #1d4ed8);
+            border-color: var(--accent-cyan);
+            font-weight: 800;
+            font-size: 0.95rem;
+        }
+
+        /* Bottom Controls Row */
+        .bottom-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        .vol-scroll-col {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px 12px;
+            border-radius: 24px;
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-pill {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: #1e293b;
+            border: 1px solid var(--border-color);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            cursor: pointer;
+        }
+
+        .btn-pill:active {
+            background: var(--accent-cyan);
+            color: #000;
+        }
+
+        .center-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .btn-mic {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            border: 2px solid #f87171;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+            transition: transform 0.1s ease;
+        }
+
+        .btn-mic:active {
+            transform: scale(0.92);
+        }
+
+        .status-toast {
+            font-size: 0.82rem;
+            text-align: center;
+            color: var(--accent-cyan);
+            min-height: 20px;
+            margin-top: 6px;
+        }
+
+        /* Script Card */
+        .code-box {
+            background: #020617;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: #38bdf8;
+            max-height: 120px;
+            overflow-y: auto;
+            white-space: pre;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+
+        .btn-copy {
+            margin-top: 8px;
+            background: rgba(0, 229, 255, 0.15);
+            border: 1px solid var(--accent-cyan);
+            color: var(--accent-cyan);
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .btn-copy:active {
+            background: var(--accent-cyan);
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div>
+                <div class="app-title">ytremote Pro</div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">YouTube TV Remote Control</div>
+            </div>
+            <div class="version-badge">v2.8.0 Active</div>
+        </div>
+
+        <!-- 1. APK Download & Update Guide (Direct from Cloud) -->
+        <div class="card">
+            <div class="card-title">
+                <span>📱</span> ফোনে সরাসরি অ্যাপ ইনস্টল ও আপডেট
+            </div>
+            <div class="card-desc">
+                সর্বশেষ আপডেটের (ভয়েস সার্চ ফিক্স এবং স্ক্রিন স্ক্রোল স্লাইডার) APK ফাইলটি নিচের বাটনে ক্লিক করে সরাসরি ফোনে ডাউনলোড করে নিন।
+            </div>
+
+            <!-- Main JavaScript Blob + Stream Download Button -->
+            <button class="btn-download" id="apkDownloadBtn" onclick="triggerApkDownload()">
+                <span id="dlIcon">⬇️</span> <span id="dlText">Download ytremote v2.8.0 APK (~24 MB)</span>
+            </button>
+
+            <!-- Direct Link Fallback -->
+            <div style="text-align: center; margin-top: 10px;">
+                <a href="/ytremote-latest.apk" target="_blank" rel="noopener noreferrer" style="color: var(--accent-cyan); font-size: 0.82rem; text-decoration: underline;">
+                    বাটনে কাজ না করলে এখানে সরাসরি ক্লিক করুন (Direct Fallback Link)
+                </a>
+            </div>
+
+            <div class="instructions">
+                <h4>📌 ইনস্টল করার সহজ নিয়ম:</h4>
+                <ol>
+                    <li>উপরের <b>Download APK</b> বাটনে চাপ দিয়ে ফাইলটি ফোনে সেভ করুন।</li>
+                    <li>ফোনের নোটিফিকেশন বার অথবা <b>Files / Downloads</b> ফোল্ডার থেকে <code>ytremote-v2.8.0.apk</code> এ ট্যাপ করুন।</li>
+                    <li><b>Install</b> বা <b>Update</b> অপশনে ক্লিক করুন। আগের সংরক্ষিত আইপি বা পিন সেটিংস অক্ষত থাকবে।</li>
+                </ol>
+                <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.2); color: #facc15; font-size: 0.82rem;">
+                    💡 <b>টিপস:</b> AI Studio স্ক্রিনের ওপরের ডানদিকের <b>থ্রি-ডট (⋮)</b> বা <b>Export / Settings</b> মেনু থেকেও <b>"Download APK"</b> অপশনে ক্লিক করে যেকোনো সময় সরাসরি আসল APK ফাইল ডাউনলোড করতে পারেন।
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Interactive Web Remote Controller -->
+        <div class="card">
+            <div class="card-title">
+                <span>🌐</span> ইনস্ট্যান্ট ওয়েব রিমোট (ব্রাউজার থেকে)
+            </div>
+            <div class="card-desc">
+                আপনি চাইলে কোনো অ্যাপ ইনস্টল না করে সরাসরি এই ব্রাউজার থেকেও পিসিতে রিমোট হিসেবে ব্যবহার করতে পারেন:
+            </div>
+
+            <div class="conn-bar">
+                <input type="text" id="pcIp" class="input-ip" placeholder="PC IP (e.g. 192.168.0.105)" value="192.168.0.">
+                <input type="text" id="pcPin" class="input-pin" placeholder="PIN" value="2468">
+            </div>
+
+            <!-- Touchpad -->
+            <div class="touchpad" id="touchpad">
+                <div class="touchpad-label">🖱️ Drag to Move Mouse • Tap to Click</div>
+            </div>
+
+            <!-- D-Pad -->
+            <div class="dpad-container">
+                <div></div>
+                <button class="btn-round" onclick="sendKey('UP')">▲</button>
+                <div></div>
+
+                <button class="btn-round" onclick="sendKey('LEFT')">◀</button>
+                <button class="btn-round btn-ok" onclick="sendKey('ENTER')">OK</button>
+                <button class="btn-round" onclick="sendKey('RIGHT')">▶</button>
+
+                <div></div>
+                <button class="btn-round" onclick="sendKey('DOWN')">▼</button>
+                <div></div>
+            </div>
+
+            <!-- Bottom Controls (VOL, MIC, SCROLL) -->
+            <div class="bottom-row">
+                <!-- Volume Column -->
+                <div class="vol-scroll-col">
+                    <button class="btn-pill" onclick="sendKey('VOL_UP')">+</button>
+                    <span style="font-size: 0.7rem; font-weight: bold; color: var(--text-secondary);">VOL</span>
+                    <button class="btn-pill" onclick="sendKey('VOL_DOWN')">-</button>
+                </div>
+
+                <!-- Center: Back, Voice Search, Home -->
+                <div class="center-actions">
+                    <button class="btn-pill" onclick="sendKey('ESC')" title="Back">↩</button>
+                    <button class="btn-mic" id="voiceBtn" onclick="toggleVoiceSearch()" title="Direct YouTube TV Voice Search">
+                        <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                        </svg>
+                    </button>
+                    <button class="btn-pill" onclick="sendKey('HOME')" title="Home">⌂</button>
+                </div>
+
+                <!-- Screen Scroll Column -->
+                <div class="vol-scroll-col">
+                    <button class="btn-pill" onclick="sendKey('PAGE_UP')">▲</button>
+                    <span style="font-size: 0.7rem; font-weight: bold; color: var(--accent-cyan);">SCRL</span>
+                    <button class="btn-pill" onclick="sendKey('PAGE_DOWN')">▼</button>
+                </div>
+            </div>
+
+            <div class="status-toast" id="statusToast">Ready to connect</div>
+        </div>
+
+        <!-- 3. PC Server Script -->
+        <div class="card">
+            <div class="card-title">
+                <span>💻</span> Windows PC Server Script (v2.8.0)
+            </div>
+            <div class="card-desc">
+                পিসিতে Python দিয়ে নিচের স্ক্রিপ্টটি চালু রাখুন:
+            </div>
+            <div class="code-box" id="scriptCode">import http.server, json, sys, ctypes, urllib.parse, webbrowser, time
+
+PORT = 8765
+PIN = "2468"
+
+VK_MAP = {
+    'UP': 0x26, 'DOWN': 0x28, 'LEFT': 0x25, 'RIGHT': 0x27,
+    'ENTER': 0x0D, 'ESC': 0x1B, 'BACKSPACE': 0x08, 'SPACE': 0x20,
+    'PAGE_UP': 0x21, 'PAGE_DOWN': 0x22, 'HOME': 0x24, 'END': 0x23,
+    'TAB': 0x09, 'VOLUME_UP': 0xAF, 'VOLUME_DOWN': 0xAE, 'MUTE': 0xAD,
+    'MEDIA_PLAY_PAUSE': 0xB3, 'MEDIA_NEXT': 0xB0, 'MEDIA_PREV': 0xB1
+}
+
+def press_vk(code):
+    try:
+        ctypes.windll.user32.keybd_event(code, 0, 0, 0)
+        time.sleep(0.02)
+        ctypes.windll.user32.keybd_event(code, 0, 2, 0)
+    except Exception:
+        pass
+
+def type_string(text):
+    for ch in text:
+        try:
+            code = ord(ch)
+            ctypes.windll.user32.keybd_event(0, code, 0x0004, 0)
+            time.sleep(0.004)
+            ctypes.windll.user32.keybd_event(0, code, 0x0004 | 0x0002, 0)
+            time.sleep(0.004)
+        except Exception:
+            pass
+
+class RemoteHandler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/health':
+            self.send_response(200); self.end_headers()
+            self.wfile.write(b'{"status":"ok","version":"2.8.5"}')
+        elif self.path == '/volume':
+            self.send_response(200); self.send_header('Content-Type','application/json'); self.end_headers()
+            self.wfile.write(b'{"volume": 50}')
+        else:
+            self.send_response(404); self.end_headers()
+
+    def do_POST(self):
+        if self.path in ['/control', '/volume']:
+            length = int(self.headers.get('Content-Length', 0))
+            data = json.loads(self.rfile.read(length).decode('utf-8'))
+            action = data.get('action')
+            key = data.get('key')
+            query = data.get('query') or data.get('text')
+            dy = data.get('dy', 0)
+
+            if action == 'search_youtube' and query:
+                print(f"[YouTube Search] Instant query: {query}")
+                webbrowser.open(f"https://www.youtube.com/results?search_query={urllib.parse.quote(query)}")
+            elif action == 'scroll':
+                print(f"[Screen Scroll] dy: {dy}")
+                try:
+                    ctypes.windll.user32.mouse_event(0x0800, 0, 0, int(-dy * 6), 0)
+                except Exception:
+                    pass
+                if dy > 0:
+                    press_vk(VK_MAP['PAGE_UP'])
+                else:
+                    press_vk(VK_MAP['PAGE_DOWN'])
+            elif action == 'key' and key in VK_MAP:
+                press_vk(VK_MAP[key])
+            elif action == 'type' and query:
+                type_string(query)
+            elif action == 'mouse':
+                dx = int(data.get('dx', 0) * 1.5)
+                dy = int(data.get('dy', 0) * 1.5)
+                try:
+                    ctypes.windll.user32.mouse_event(0x0001, dx, dy, 0, 0)
+                except Exception:
+                    pass
+            elif action == 'click':
+                try:
+                    ctypes.windll.user32.mouse_event(0x0002, 0, 0, 0, 0)
+                    time.sleep(0.02)
+                    ctypes.windll.user32.mouse_event(0x0004, 0, 0, 0, 0)
+                except Exception:
+                    pass
+
+            self.send_response(200); self.end_headers()
+            self.wfile.write(b'{"status":"success"}')
+
+server = http.server.HTTPServer(('0.0.0.0', PORT), RemoteHandler)
+print(f"ytremote Server v2.8.5 running on port {PORT} with PIN {PIN}")
+server.serve_forever()</div>
+            <button class="btn-copy" onclick="copyScript()">📋 Copy PC Server Script</button>
+        </div>
+    </div>
+
+    <script>
+        const statusToast = document.getElementById('statusToast');
+
+        function setStatus(msg) {
+            statusToast.innerText = msg;
+            clearTimeout(window._statusTimeout);
+            window._statusTimeout = setTimeout(() => {
+                statusToast.innerText = 'Ready';
+            }, 3000);
+        }
+
+        function getTargetUrl() {
+            const ip = document.getElementById('pcIp').value.trim();
+            return `http://${ip}:8765/control`;
+        }
+
+        function getPin() {
+            return document.getElementById('pcPin').value.trim();
+        }
+
+        async function sendPayload(payload) {
+            const url = getTargetUrl();
+            try {
+                await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    mode: 'no-cors'
+                });
+            } catch (err) {
+                console.log("Command sent via network");
+            }
+        }
+
+        function sendKey(keyName) {
+            const pin = getPin();
+            sendPayload({ pin: pin, action: 'key', key: keyName });
+            setStatus(`Sent: ${keyName}`);
+        }
+
+        // Touchpad drag & click handling
+        const pad = document.getElementById('touchpad');
+        let lastX = 0, lastY = 0, isDragging = false, dragDistance = 0;
+
+        pad.addEventListener('touchstart', (e) => {
+            isDragging = true;
+            dragDistance = 0;
+            lastX = e.touches[0].clientX;
+            lastY = e.touches[0].clientY;
+        }, { passive: true });
+
+        pad.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+            const currentX = e.touches[0].clientX;
+            const currentY = e.touches[0].clientY;
+            const dx = currentX - lastX;
+            const dy = currentY - lastY;
+            dragDistance += Math.abs(dx) + Math.abs(dy);
+            lastX = currentX;
+            lastY = currentY;
+
+            sendPayload({ pin: getPin(), action: 'mouse_move', dx: dx * 1.5, dy: dy * 1.5 });
+        }, { passive: true });
+
+        pad.addEventListener('touchend', () => {
+            if (dragDistance < 8) {
+                // Short tap -> send mouse click
+                sendPayload({ pin: getPin(), action: 'click' });
+                setStatus('Mouse Click');
+            }
+            isDragging = false;
+        });
+
+        // Instant YouTube Voice Search
+        let recognition = null;
+        let isListening = false;
+        const voiceBtn = document.getElementById('voiceBtn');
+
+        function toggleVoiceSearch() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert("Speech recognition is not supported in this browser. Please use Google Chrome.");
+                return;
+            }
+
+            if (isListening && recognition) {
+                recognition.stop();
+                return;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'bn-BD,en-US';
+
+            recognition.onstart = () => {
+                isListening = true;
+                voiceBtn.style.boxShadow = "0 0 25px #ef4444";
+                setStatus("🎙️ Listening... Speak now!");
+            };
+
+            recognition.onresult = (event) => {
+                const query = event.results[0][0].transcript;
+                setStatus(`🔍 Searching: "${query}"`);
+                sendPayload({ pin: getPin(), action: 'search_youtube', query: query });
+            };
+
+            recognition.onerror = (e) => {
+                setStatus(`Voice error: ${e.error}`);
+            };
+
+            recognition.onend = () => {
+                isListening = false;
+                voiceBtn.style.boxShadow = "0 0 15px rgba(239, 68, 68, 0.4)";
+            };
+
+            recognition.start();
+        }
+
+        async function triggerApkDownload() {
+            const btn = document.getElementById('apkDownloadBtn');
+            const icon = document.getElementById('dlIcon');
+            const text = document.getElementById('dlText');
+
+            icon.innerText = "⏳";
+            text.innerText = "Downloading APK file...";
+            btn.style.opacity = "0.85";
+
+            try {
+                const response = await fetch('/ytremote-latest.apk');
+                if (!response.ok) throw new Error("HTTP error " + response.status);
+                
+                const blob = await response.blob();
+                const blobUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = blobUrl;
+                a.download = 'ytremote-v2.8.0.apk';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(blobUrl);
+
+                icon.innerText = "✅";
+                text.innerText = "Download Started!";
+                setTimeout(() => {
+                    icon.innerText = "⬇️";
+                    text.innerText = "Download ytremote v2.8.0 APK (~24 MB)";
+                    btn.style.opacity = "1";
+                }, 4000);
+            } catch (err) {
+                console.error("Blob download failed, trying direct navigation:", err);
+                // Fallback to direct download navigation
+                window.location.href = '/ytremote-latest.apk';
+                icon.innerText = "⬇️";
+                text.innerText = "Download ytremote v2.8.0 APK (~24 MB)";
+                btn.style.opacity = "1";
+            }
+        }
+
+        function copyScript() {
+            const code = document.getElementById('scriptCode').innerText;
+            navigator.clipboard.writeText(code).then(() => {
+                alert("PC Server Script copied to clipboard!");
+            });
+        }
+    </script>
+</body>
+</html>
