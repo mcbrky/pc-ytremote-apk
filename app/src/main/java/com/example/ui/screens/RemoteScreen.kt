@@ -37,11 +37,14 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ControlCamera
 import androidx.compose.material.icons.filled.Gamepad
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -118,6 +121,19 @@ fun RemoteScreen(
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
+    // Keep phone screen awake while using remote if option is enabled
+    DisposableEffect(settings.keepScreenOn) {
+        val window = (context as? android.app.Activity)?.window
+        if (settings.keepScreenOn) {
+            window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -144,6 +160,24 @@ fun RemoteScreen(
                 },
                 onToggleUseJoystick = {
                     viewModel.updateUseJoystick(it)
+                },
+                onUpdateTouchpadSettings = { show, tap, sens, height ->
+                    viewModel.updateTouchpadSettings(show, tap, sens, height)
+                },
+                onToggleSwapDpadAndTouchpad = {
+                    viewModel.updateSwapDpadAndTouchpad(it)
+                },
+                onUpdateScrollSettings = { show, sens, invert ->
+                    viewModel.updateScrollSettings(show, sens, invert)
+                },
+                onUpdateAirMouseSettings = { enabled, sens, smooth, pause, quick ->
+                    viewModel.updateAirMouseSettings(enabled, sens, smooth, pause, quick)
+                },
+                onUpdateFeatureSettings = { awake, enter, vib, joy ->
+                    viewModel.updateFeatureSettings(awake, enter, vib, joy)
+                },
+                onUpdateDisplaySettings = { upNext, voice, play, vol, add ->
+                    viewModel.updateDisplaySettings(upNext, voice, play, vol, add)
                 },
                 onBack = { viewModel.closeSettings() }
             )
@@ -244,49 +278,133 @@ private fun PortraitRemoteLayout(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // 1. TOP SECTION: Large Adaptive Touch Pad Card
-            TouchpadView(
-                onDrag = { dx, dy -> viewModel.onTouchpadDrag(dx, dy) },
-                onClick = { viewModel.onTouchpadClick() },
-                style = style,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(calculatedTouchpadHeight)
-            )
-
-            // 2. MIDDLE SECTION: JOYSTICK / D-PAD or Extended Page
-            if (currentPage == 0) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // Header row for LED (Left) and Mode Toggle + Settings (Right) flanking Controller area
-                    Row(
+            // 1. Touchpad Composable lambda
+            val touchpadComposable = @Composable {
+                if (settings.showTouchpad) {
+                    TouchpadView(
+                        onDrag = { dx, dy -> viewModel.onTouchpadDrag(dx, dy) },
+                        onClick = { viewModel.onTouchpadClick() },
+                        tapToClickEnabled = settings.touchpadTapToClick,
+                        style = style,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 6.dp),
+                            .height(calculatedTouchpadHeight)
+                    )
+                }
+            }
+
+            // 2. Middle Pill-Shaped Action Island Console Bar (ডি-প্যাড ও টাচপ্যাডের মাঝের পিল শেপ কনসোল)
+            val middleIslandBarComposable = @Composable {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 2.dp, vertical = 2.dp)
+                        .shadow(
+                            elevation = 5.dp,
+                            shape = RoundedCornerShape(26.dp),
+                            spotColor = Color.Black.copy(alpha = 0.5f)
+                        )
+                        .clip(RoundedCornerShape(26.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(
+                                    style.buttonBgTop.copy(alpha = 0.95f),
+                                    style.buttonBgBottom.copy(alpha = 0.98f)
+                                )
+                            )
+                        )
+                        .border(
+                            width = 1.2.dp,
+                            color = style.buttonBorder,
+                            shape = RoundedCornerShape(26.dp)
+                        )
+                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Left: Green connection LED with "CONNECTED" text badge
+                        // Left: Connection Status Pill Badge
                         ConnectionLedIndicator(
                             status = connectionStatus,
                             style = style,
                             onReconnect = { viewModel.reconnect() }
                         )
 
-                        // Right actions: Quick Joystick/Dpad Toggle + Settings Gear
+                        // Right: Dedicated Sub-Pill Segment for Quick Actions
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(style.chassisTop.copy(alpha = 0.45f))
+                                .border(
+                                    0.8.dp,
+                                    style.buttonBorder.copy(alpha = 0.6f),
+                                    RoundedCornerShape(18.dp)
+                                )
+                                .padding(horizontal = 6.dp, vertical = 3.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Quick Joystick vs D-pad Mode Toggle
+                            // Quick 1-tap Air Mouse toggle
+                            if (settings.showQuickAirMouseToggle) {
+                                IconButton(
+                                    onClick = { viewModel.toggleAirMouse() },
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (settings.gyroEnabled) style.accentPrimary.copy(alpha = 0.28f)
+                                            else style.buttonBgTop.copy(alpha = 0.8f)
+                                        )
+                                        .border(
+                                            1.dp,
+                                            if (settings.gyroEnabled) style.accentPrimary else style.buttonBorder,
+                                            CircleShape
+                                        )
+                                        .testTag("btn_air_mouse_quick")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.NearMe,
+                                        contentDescription = if (settings.gyroEnabled) "Air Mouse Active" else "Air Mouse Off",
+                                        tint = if (settings.gyroEnabled) style.accentPrimary else if (style.isLight) Color(0xFF0F172A) else Color.White,
+                                        modifier = Modifier.size(17.dp)
+                                    )
+                                }
+                            }
+
+                            // Quick Swap D-Pad & Touchpad
+                            IconButton(
+                                onClick = { viewModel.toggleSwapDpadAndTouchpad() },
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (settings.swapDpadAndTouchpad) style.accentPrimary.copy(alpha = 0.28f)
+                                        else style.buttonBgTop.copy(alpha = 0.8f)
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (settings.swapDpadAndTouchpad) style.accentPrimary else style.buttonBorder,
+                                        CircleShape
+                                    )
+                                    .testTag("btn_swap_layout_quick")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SwapVert,
+                                    contentDescription = if (settings.swapDpadAndTouchpad) "D-Pad Top Active" else "Touchpad Top Active",
+                                    tint = if (settings.swapDpadAndTouchpad) style.accentPrimary else if (style.isLight) Color(0xFF0F172A) else Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            // Quick Joystick vs D-Pad Mode Toggle
                             IconButton(
                                 onClick = { viewModel.updateUseJoystick(!settings.useJoystick) },
                                 modifier = Modifier
-                                    .size(38.dp)
+                                    .size(34.dp)
                                     .clip(CircleShape)
-                                    .background(style.buttonBgTop.copy(alpha = 0.7f))
+                                    .background(style.buttonBgTop.copy(alpha = 0.8f))
                                     .border(1.dp, style.buttonBorder, CircleShape)
                                     .testTag("btn_toggle_joystick")
                             ) {
@@ -294,7 +412,7 @@ private fun PortraitRemoteLayout(
                                     imageVector = if (settings.useJoystick) Icons.Default.Gamepad else Icons.Default.ControlCamera,
                                     contentDescription = if (settings.useJoystick) "Switch to D-Pad" else "Switch to Joystick",
                                     tint = style.accentPrimary,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
 
@@ -302,54 +420,77 @@ private fun PortraitRemoteLayout(
                             IconButton(
                                 onClick = onOpenSettings,
                                 modifier = Modifier
-                                    .size(38.dp)
+                                    .size(34.dp)
                                     .clip(CircleShape)
-                                    .background(style.buttonBgTop.copy(alpha = 0.7f))
+                                    .background(style.buttonBgTop.copy(alpha = 0.8f))
                                     .border(1.dp, style.buttonBorder, CircleShape)
                                     .testTag("btn_settings")
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Settings,
                                     contentDescription = "Settings",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
+                                    tint = if (style.isLight) Color(0xFF0F172A) else Color.White,
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
                     }
+                }
+            }
 
-                    // Center: Joystick Thumbstick or D-Pad based on user preference
-                    if (settings.useJoystick) {
-                        JoystickController(
-                            onKeyClick = { viewModel.onKeyClicked(it) },
-                            size = calculatedDpadSize,
-                            sensitivity = settings.joystickSensitivity,
-                            style = style,
-                            modifier = Modifier.padding(vertical = 2.dp)
-                        )
-                    } else {
-                        DPadController(
-                            onKeyClick = { viewModel.onKeyClicked(it) },
-                            size = calculatedDpadSize,
-                            style = style,
-                            modifier = Modifier.padding(vertical = 2.dp)
+            // 3. Controller Body Composable lambda
+            val controllerBodyComposable = @Composable {
+                if (currentPage == 0) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Center: Joystick Thumbstick or D-Pad based on user preference
+                        if (settings.useJoystick) {
+                            JoystickController(
+                                onKeyClick = { viewModel.onKeyClicked(it) },
+                                size = calculatedDpadSize,
+                                sensitivity = settings.joystickSensitivity,
+                                style = style,
+                                modifier = Modifier.padding(vertical = 2.dp)
+                            )
+                        } else {
+                            DPadController(
+                                onKeyClick = { viewModel.onKeyClicked(it) },
+                                size = calculatedDpadSize,
+                                style = style,
+                                modifier = Modifier.padding(vertical = 2.dp)
+                            )
+                        }
+
+                        // Page Indicator Dots under Controller: (•) ( )
+                        PageIndicatorDots(
+                            currentPage = currentPage,
+                            onToggle = { viewModel.togglePage() },
+                            accentColor = style.accentPrimary,
+                            modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
                         )
                     }
-
-                    // Page Indicator Dots under Controller: (•) ( )
-                    PageIndicatorDots(
-                        currentPage = currentPage,
-                        onToggle = { viewModel.togglePage() },
-                        accentColor = style.accentPrimary,
-                        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+                } else {
+                    // Extended Controls (Media Bar + 0-9 Numpad)
+                    ExtendedControlsView(
+                        onKeyClick = { viewModel.onKeyClicked(it) },
+                        onBackToMain = { viewModel.setCurrentPage(0) }
                     )
                 }
+            }
+
+            // Render in order: Pill Island sits right in the middle between Touchpad and D-Pad!
+            if (settings.swapDpadAndTouchpad) {
+                // Interchanged: D-Pad on top, Pill Bar in middle, Touchpad on bottom!
+                controllerBodyComposable()
+                middleIslandBarComposable()
+                touchpadComposable()
             } else {
-                // Extended Controls (Media Bar + 0-9 Numpad)
-                ExtendedControlsView(
-                    onKeyClick = { viewModel.onKeyClicked(it) },
-                    onBackToMain = { viewModel.setCurrentPage(0) }
-                )
+                // Default: Touchpad on top, Pill Bar in middle, D-Pad on bottom!
+                touchpadComposable()
+                middleIslandBarComposable()
+                controllerBodyComposable()
             }
 
             // Inline Built-in Voice Typing Feedback Banner (Discreet, no full-screen popups)
@@ -411,6 +552,8 @@ private fun PortraitRemoteLayout(
                 onScrollDown = { viewModel.onScrollDown() },
                 isVoiceListening = isVoiceListening,
                 onVoiceClick = onVoiceClick,
+                showScrollBar = settings.showScrollBar,
+                showVolumeControls = settings.showVolumeControls,
                 style = style,
                 modifier = Modifier.padding(bottom = 4.dp)
             )
@@ -447,59 +590,134 @@ private fun LandscapeRemoteLayout(
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                style.buttonBgTop.copy(alpha = 0.95f),
+                                style.buttonBgBottom.copy(alpha = 0.98f)
+                            )
+                        )
+                    )
+                    .border(1.2.dp, style.buttonBorder, RoundedCornerShape(22.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                ConnectionLedIndicator(
-                    status = connectionStatus,
-                    style = style,
-                    onReconnect = { viewModel.reconnect() }
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ConnectionLedIndicator(
+                        status = connectionStatus,
+                        style = style,
+                        onReconnect = { viewModel.reconnect() }
+                    )
 
-                PageIndicatorDots(
-                    currentPage = currentPage,
-                    onToggle = { viewModel.togglePage() },
-                    accentColor = style.accentPrimary
-                )
+                    PageIndicatorDots(
+                        currentPage = currentPage,
+                        onToggle = { viewModel.togglePage() },
+                        accentColor = style.accentPrimary
+                    )
 
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    IconButton(
-                        onClick = { viewModel.updateUseJoystick(!settings.useJoystick) },
-                        modifier = Modifier.size(36.dp)
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(style.chassisTop.copy(alpha = 0.45f))
+                            .border(0.8.dp, style.buttonBorder.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = if (settings.useJoystick) Icons.Default.Gamepad else Icons.Default.ControlCamera,
-                            contentDescription = "Toggle Joystick",
-                            tint = style.accentPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                        if (settings.showQuickAirMouseToggle) {
+                            IconButton(
+                                onClick = { viewModel.toggleAirMouse() },
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (settings.gyroEnabled) style.accentPrimary.copy(alpha = 0.25f)
+                                        else style.buttonBgTop.copy(alpha = 0.7f)
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (settings.gyroEnabled) style.accentPrimary else style.buttonBorder,
+                                        CircleShape
+                                    )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.NearMe,
+                                    contentDescription = if (settings.gyroEnabled) "Air Mouse Active" else "Air Mouse Off",
+                                    tint = if (settings.gyroEnabled) style.accentPrimary else if (style.isLight) Color(0xFF0F172A) else Color.White,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
+                        }
 
-                    IconButton(
-                        onClick = onOpenSettings,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        IconButton(
+                            onClick = { viewModel.toggleSwapDpadAndTouchpad() },
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (settings.swapDpadAndTouchpad) style.accentPrimary.copy(alpha = 0.25f)
+                                    else style.buttonBgTop.copy(alpha = 0.7f)
+                                )
+                                .border(
+                                    1.dp,
+                                    if (settings.swapDpadAndTouchpad) style.accentPrimary else style.buttonBorder,
+                                    CircleShape
+                                )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SwapVert,
+                                contentDescription = "Swap D-Pad and Touchpad",
+                                tint = if (settings.swapDpadAndTouchpad) style.accentPrimary else if (style.isLight) Color(0xFF0F172A) else Color.White,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { viewModel.updateUseJoystick(!settings.useJoystick) },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (settings.useJoystick) Icons.Default.Gamepad else Icons.Default.ControlCamera,
+                                contentDescription = "Toggle Joystick",
+                                tint = style.accentPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onOpenSettings,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Settings",
+                                tint = if (style.isLight) Color(0xFF0F172A) else Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }
 
-            TouchpadView(
-                onDrag = { dx, dy -> viewModel.onTouchpadDrag(dx, dy) },
-                onClick = { viewModel.onTouchpadClick() },
-                style = style,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(vertical = 4.dp)
-            )
+            if (settings.showTouchpad) {
+                TouchpadView(
+                    onDrag = { dx, dy -> viewModel.onTouchpadDrag(dx, dy) },
+                    onClick = { viewModel.onTouchpadClick() },
+                    tapToClickEnabled = settings.touchpadTapToClick,
+                    style = style,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(vertical = 4.dp)
+                )
+            }
 
             // Inline Voice Banner in landscape
             if (liveVoiceText != null) {
@@ -577,6 +795,8 @@ private fun LandscapeRemoteLayout(
                 onScrollDown = { viewModel.onScrollDown() },
                 isVoiceListening = isVoiceListening,
                 onVoiceClick = onVoiceClick,
+                showScrollBar = settings.showScrollBar,
+                showVolumeControls = settings.showVolumeControls,
                 style = style
             )
         }

@@ -81,6 +81,8 @@ fun RemoteBottomControls(
     onScrollDown: () -> Unit = onChannelDown,
     isVoiceListening: Boolean = false,
     onVoiceClick: () -> Unit = {},
+    showScrollBar: Boolean = true,
+    showVolumeControls: Boolean = true,
     modifier: Modifier = Modifier,
     style: RemoteDesignStyle = RemoteDesignStyle.OBSIDIAN_PRO
 ) {
@@ -92,105 +94,172 @@ fun RemoteBottomControls(
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 1. Left: Interactive Slideable Volume Bar with Fluid Level Indicator
-        SlideableVolumeBar(
-            currentVolume = currentVolume,
-            onVolumeUp = onVolumeUp,
-            onVolumeDown = onVolumeDown,
-            onVolumeSlide = onVolumeSlide,
-            style = style
-        )
+        if (showVolumeControls) {
+            SlideableVolumeBar(
+                currentVolume = currentVolume,
+                onVolumeUp = onVolumeUp,
+                onVolumeDown = onVolumeDown,
+                onVolumeSlide = onVolumeSlide,
+                style = style
+            )
+        } else if (showScrollBar) {
+            Spacer(modifier = Modifier.width(56.dp))
+        }
 
-        // 2. Center: 3 Top / 3 Bottom Round Action Buttons Cluster
-        Column(
-            modifier = Modifier.width(176.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+        // 2. Center: Dedicated Pill-Shaped Action Console with Distinct Segments
+        Box(
+            modifier = Modifier
+                .width(184.dp)
+                .height(144.dp)
+                .shadow(
+                    elevation = 6.dp,
+                    shape = RoundedCornerShape(28.dp),
+                    spotColor = Color.Black.copy(alpha = 0.5f)
+                )
+                .clip(RoundedCornerShape(28.dp))
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            style.buttonBgTop.copy(alpha = 0.92f),
+                            style.buttonBgBottom.copy(alpha = 0.98f)
+                        )
+                    )
+                )
+                .border(
+                    width = 1.3.dp,
+                    color = style.buttonBorder,
+                    shape = RoundedCornerShape(28.dp)
+                )
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center
         ) {
-            // Top Row: Keyboard, Back (Undo), Numpad (Dialpad)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                RoundActionButton(
-                    icon = Icons.Default.Keyboard,
-                    contentDescription = "Search Keyboard",
-                    size = 46.dp,
-                    iconSize = 22.dp,
-                    onClick = onKeyboardClick,
-                    testTag = "btn_keyboard",
-                    style = style
-                )
+                // Top Segment: Keyboard, Back (Undo), Numpad (Dialpad)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(style.chassisTop.copy(alpha = 0.35f))
+                        .border(
+                            width = 0.8.dp,
+                            color = style.buttonBorder.copy(alpha = 0.45f),
+                            shape = RoundedCornerShape(20.dp)
+                        )
+                        .padding(horizontal = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RoundActionButton(
+                            icon = Icons.Default.Keyboard,
+                            contentDescription = "Search Keyboard",
+                            size = 40.dp,
+                            iconSize = 20.dp,
+                            onClick = onKeyboardClick,
+                            testTag = "btn_keyboard",
+                            style = style
+                        )
 
-                RoundActionButton(
-                    icon = Icons.AutoMirrored.Filled.Undo,
-                    contentDescription = "Back / Escape",
-                    size = 46.dp,
-                    iconSize = 22.dp,
-                    onClick = onBackClick,
-                    testTag = "btn_back",
-                    style = style
-                )
+                        RoundActionButton(
+                            icon = Icons.AutoMirrored.Filled.Undo,
+                            contentDescription = "Back / Escape",
+                            size = 40.dp,
+                            iconSize = 20.dp,
+                            onClick = onBackClick,
+                            testTag = "btn_back",
+                            style = style
+                        )
 
-                RoundActionButton(
-                    icon = Icons.Default.Dialpad,
-                    contentDescription = "Numpad & Controls",
-                    size = 46.dp,
-                    iconSize = 22.dp,
-                    onClick = onNumpadClick,
-                    testTag = "btn_numpad",
-                    style = style
-                )
-            }
+                        RoundActionButton(
+                            icon = Icons.Default.Dialpad,
+                            contentDescription = "Numpad & Controls",
+                            size = 40.dp,
+                            iconSize = 20.dp,
+                            onClick = onNumpadClick,
+                            testTag = "btn_numpad",
+                            style = style
+                        )
+                    }
+                }
 
-            // Bottom Row: Speaker/Mute, Built-in Voice Typing Mic, Home
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RoundActionButton(
-                    icon = Icons.Default.VolumeMute,
-                    contentDescription = "Mute",
-                    size = 46.dp,
-                    iconSize = 22.dp,
-                    onClick = onMute,
-                    testTag = "btn_mute",
-                    style = style
-                )
+                Spacer(modifier = Modifier.height(6.dp))
 
-                // Built-in Voice Typing Mic button (Direct inline typing, no Google Voice activity)
-                RoundActionButton(
-                    icon = if (isVoiceListening) Icons.Default.MicOff else Icons.Default.Mic,
-                    contentDescription = if (isVoiceListening) "Stop Listening" else "Built-in Voice Typing",
-                    size = 48.dp,
-                    iconSize = 24.dp,
-                    onClick = onVoiceClick,
-                    tintColor = if (isVoiceListening) Color(0xFFFF3333) else style.accentPrimary,
-                    borderColor = if (isVoiceListening) Color(0xFFFF3333) else style.accentPrimary.copy(alpha = 0.6f),
-                    testTag = "btn_voice_typing",
-                    style = style
-                )
+                // Bottom Segment: Speaker/Mute, Built-in Voice Typing Mic, Home
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(style.chassisTop.copy(alpha = 0.35f))
+                        .border(
+                            width = 0.8.dp,
+                            color = style.buttonBorder.copy(alpha = 0.45f),
+                            shape = RoundedCornerShape(20.dp)
+                        )
+                        .padding(horizontal = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RoundActionButton(
+                            icon = Icons.Default.VolumeMute,
+                            contentDescription = "Mute",
+                            size = 40.dp,
+                            iconSize = 20.dp,
+                            onClick = onMute,
+                            testTag = "btn_mute",
+                            style = style
+                        )
 
-                RoundActionButton(
-                    icon = Icons.Default.Home,
-                    contentDescription = "Home",
-                    size = 46.dp,
-                    iconSize = 22.dp,
-                    onClick = onHomeClick,
-                    testTag = "btn_home",
-                    style = style
-                )
+                        // Built-in Voice Typing Mic button (Direct inline typing, no Google Voice activity)
+                        RoundActionButton(
+                            icon = if (isVoiceListening) Icons.Default.MicOff else Icons.Default.Mic,
+                            contentDescription = if (isVoiceListening) "Stop Listening" else "Built-in Voice Typing",
+                            size = 42.dp,
+                            iconSize = 22.dp,
+                            onClick = onVoiceClick,
+                            tintColor = if (isVoiceListening) Color(0xFFFF3333) else style.accentPrimary,
+                            borderColor = if (isVoiceListening) Color(0xFFFF3333) else style.accentPrimary.copy(alpha = 0.7f),
+                            testTag = "btn_voice_typing",
+                            style = style
+                        )
+
+                        RoundActionButton(
+                            icon = Icons.Default.Home,
+                            contentDescription = "Home",
+                            size = 40.dp,
+                            iconSize = 20.dp,
+                            onClick = onHomeClick,
+                            testTag = "btn_home",
+                            style = style
+                        )
+                    }
+                }
             }
         }
 
         // 3. Right: Interactive Vertical Screen Scroll Slider (Replaces legacy CH rocker)
-        SlideableScrollBar(
-            onScrollDrag = onScrollDrag,
-            onScrollUp = onScrollUp,
-            onScrollDown = onScrollDown,
-            style = style
-        )
+        if (showScrollBar) {
+            SlideableScrollBar(
+                onScrollDrag = onScrollDrag,
+                onScrollUp = onScrollUp,
+                onScrollDown = onScrollDown,
+                style = style
+            )
+        } else if (showVolumeControls) {
+            Spacer(modifier = Modifier.width(56.dp))
+        }
     }
 }
 

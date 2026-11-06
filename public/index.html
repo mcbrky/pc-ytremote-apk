@@ -489,33 +489,79 @@ VK_MAP = {
     'ENTER': 0x0D, 'ESC': 0x1B, 'BACKSPACE': 0x08, 'SPACE': 0x20,
     'PAGE_UP': 0x21, 'PAGE_DOWN': 0x22, 'HOME': 0x24, 'END': 0x23,
     'TAB': 0x09, 'VOLUME_UP': 0xAF, 'VOLUME_DOWN': 0xAE, 'MUTE': 0xAD,
-    'MEDIA_PLAY_PAUSE': 0xB3, 'MEDIA_NEXT': 0xB0, 'MEDIA_PREV': 0xB1
+    'MEDIA_PLAY_PAUSE': 0xB3, 'MEDIA_NEXT': 0xB0, 'MEDIA_PREV': 0xB1,
+    'F11': 0x7A, 'CONTROL': 0x11, 'ALT': 0x12, 'SHIFT': 0x10, 'DELETE': 0x2E
 }
+
+u32 = ctypes.windll.user32
+k32 = ctypes.windll.kernel32
 
 def press_vk(code):
     try:
-        ctypes.windll.user32.keybd_event(code, 0, 0, 0)
-        time.sleep(0.02)
-        ctypes.windll.user32.keybd_event(code, 0, 2, 0)
+        u32.keybd_event(code, 0, 0, 0)
+        time.sleep(0.015)
+        u32.keybd_event(code, 0, 2, 0)
     except Exception:
         pass
 
-def type_string(text):
-    for ch in text:
-        try:
-            code = ord(ch)
-            ctypes.windll.user32.keybd_event(0, code, 0x0004, 0)
-            time.sleep(0.004)
-            ctypes.windll.user32.keybd_event(0, code, 0x0004 | 0x0002, 0)
-            time.sleep(0.004)
-        except Exception:
-            pass
+def press_ctrl_v():
+    try:
+        u32.keybd_event(0x11, 0, 0, 0)      # Ctrl down
+        time.sleep(0.01)
+        u32.keybd_event(0x56, 0, 0, 0)      # 'V' down
+        time.sleep(0.02)
+        u32.keybd_event(0x56, 0, 2, 0)      # 'V' up
+        time.sleep(0.01)
+        u32.keybd_event(0x11, 0, 2, 0)      # Ctrl up
+    except Exception:
+        pass
+
+def paste_text_to_pc(text, do_enter=False):
+    pasted = False
+    try:
+        CF_UNICODETEXT = 13
+        GMEM_MOVEABLE = 0x0002
+        if u32.OpenClipboard(0):
+            u32.EmptyClipboard()
+            encoded = (text + '\0').encode('utf-16le')
+            h_mem = k32.GlobalAlloc(GMEM_MOVEABLE, len(encoded))
+            if h_mem:
+                p_mem = k32.GlobalLock(h_mem)
+                ctypes.memmove(p_mem, encoded, len(encoded))
+                k32.GlobalUnlock(h_mem)
+                u32.SetClipboardData(CF_UNICODETEXT, h_mem)
+            u32.CloseClipboard()
+            time.sleep(0.02)
+            press_ctrl_v()
+            pasted = True
+    except Exception as e:
+        pass
+
+    if not pasted:
+        for ch in text:
+            try:
+                code = ord(ch)
+                if code < 128:
+                    vk = u32.VkKeyScanW(code)
+                    if vk != -1:
+                        press_vk(vk & 0xFF)
+                        continue
+                u32.keybd_event(0, code, 0x0004, 0)
+                time.sleep(0.003)
+                u32.keybd_event(0, code, 0x0004 | 0x0002, 0)
+                time.sleep(0.003)
+            except Exception:
+                pass
+
+    if do_enter:
+        time.sleep(0.05)
+        press_vk(VK_MAP['ENTER'])
 
 class RemoteHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/health':
             self.send_response(200); self.end_headers()
-            self.wfile.write(b'{"status":"ok","version":"2.8.5"}')
+            self.wfile.write(b'{"status":"ok","version":"2.9.0"}')
         elif self.path == '/volume':
             self.send_response(200); self.send_header('Content-Type','application/json'); self.end_headers()
             self.wfile.write(b'{"volume": 50}')
@@ -529,37 +575,38 @@ class RemoteHandler(http.server.BaseHTTPRequestHandler):
             action = data.get('action')
             key = data.get('key')
             query = data.get('query') or data.get('text')
-            dy = data.get('dy', 0)
+            do_enter = bool(data.get('enter', False))
+            dy = float(data.get('dy', 0))
 
             if action == 'search_youtube' and query:
-                print(f"[YouTube Search] Instant query: {query}")
                 webbrowser.open(f"https://www.youtube.com/results?search_query={urllib.parse.quote(query)}")
+            elif action == 'type' and query:
+                paste_text_to_pc(query, do_enter=do_enter)
             elif action == 'scroll':
-                print(f"[Screen Scroll] dy: {dy}")
+                wheel_delta = int(round(dy * 120))
                 try:
-                    ctypes.windll.user32.mouse_event(0x0800, 0, 0, int(-dy * 6), 0)
+                    u32.mouse_event(0x0800, 0, 0, wheel_delta, 0)
                 except Exception:
                     pass
-                if dy > 0:
-                    press_vk(VK_MAP['PAGE_UP'])
-                else:
-                    press_vk(VK_MAP['PAGE_DOWN'])
+                if abs(wheel_delta) < 60:
+                    if dy > 0:
+                        press_vk(VK_MAP['PAGE_UP'])
+                    elif dy < 0:
+                        press_vk(VK_MAP['PAGE_DOWN'])
             elif action == 'key' and key in VK_MAP:
                 press_vk(VK_MAP[key])
-            elif action == 'type' and query:
-                type_string(query)
             elif action == 'mouse':
-                dx = int(data.get('dx', 0) * 1.5)
-                dy = int(data.get('dy', 0) * 1.5)
+                dx = int(round(float(data.get('dx', 0))))
+                dy_m = int(round(float(data.get('dy', 0))))
                 try:
-                    ctypes.windll.user32.mouse_event(0x0001, dx, dy, 0, 0)
+                    u32.mouse_event(0x0001, dx, dy_m, 0, 0)
                 except Exception:
                     pass
             elif action == 'click':
                 try:
-                    ctypes.windll.user32.mouse_event(0x0002, 0, 0, 0, 0)
+                    u32.mouse_event(0x0002, 0, 0, 0, 0)
                     time.sleep(0.02)
-                    ctypes.windll.user32.mouse_event(0x0004, 0, 0, 0, 0)
+                    u32.mouse_event(0x0004, 0, 0, 0, 0)
                 except Exception:
                     pass
 
@@ -567,9 +614,9 @@ class RemoteHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(b'{"status":"success"}')
 
 server = http.server.HTTPServer(('0.0.0.0', PORT), RemoteHandler)
-print(f"ytremote Server v2.8.5 running on port {PORT} with PIN {PIN}")
+print(f"ytremote Server v2.9.0 running on port {PORT} with PIN {PIN}")
 server.serve_forever()</div>
-            <button class="btn-copy" onclick="copyScript()">📋 Copy PC Server Script</button>
+            <button class="btn-copy" onclick="copyScript()">📋 Copy PC Server Script (v2.9.0)</button>
         </div>
     </div>
 

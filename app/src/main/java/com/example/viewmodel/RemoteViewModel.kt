@@ -88,10 +88,13 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     private val _liveVoiceText = MutableStateFlow<String?>(null)
     val liveVoiceText: StateFlow<String?> = _liveVoiceText.asStateFlow()
 
-    // Gyroscope controller
+    // Gyroscope controller with typing auto-pause & precision tracking
     private val gyroController = GyroscopeController(application) { dx, dy ->
         val currentSettings = settings.value
         if (currentSettings.gyroEnabled && _connectionStatus.value == ConnectionStatus.CONNECTED) {
+            if (currentSettings.pauseAirMouseWhileTyping && (_isSearchModalOpen.value || voiceState.value is VoiceState.Listening)) {
+                return@GyroscopeController
+            }
             apiClient.enqueueMouseMove(
                 ip = currentSettings.serverIp,
                 port = currentSettings.serverPort,
@@ -110,7 +113,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             settings.collect { currentSettings ->
                 if (currentSettings.gyroEnabled) {
-                    gyroController.start(currentSettings.gyroSensitivity)
+                    gyroController.start(currentSettings.gyroSensitivity, currentSettings.gyroSmoothing)
                 } else {
                     gyroController.stop()
                 }
@@ -151,6 +154,9 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
 
     fun startDirectVoiceSearch() {
         triggerHapticFeedback()
+        if (settings.value.pauseAirMouseWhileTyping) {
+            gyroController.pause()
+        }
         _liveVoiceText.value = "🎙️ Listening... Speak now"
         voiceManager.startListening { /* StateFlow handles FinalResult */ }
     }
@@ -159,6 +165,9 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         triggerHapticFeedback()
         voiceManager.stopListening()
         _liveVoiceText.value = null
+        if (settings.value.pauseAirMouseWhileTyping && settings.value.gyroEnabled) {
+            gyroController.resume()
+        }
     }
 
     fun toggleBuiltInVoiceTyping() {
@@ -322,16 +331,21 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         _searchQuery.value = text
     }
 
-    fun sendUniversalText(text: String, pressEnter: Boolean = false) {
+    fun sendUniversalText(text: String, pressEnter: Boolean? = null) {
         val trimmed = text.trim()
         if (trimmed.isBlank()) return
         triggerHapticFeedback()
         val currentSettings = settings.value
+        val shouldEnter = pressEnter ?: currentSettings.autoEnterOnTyping
         _searchQuery.value = trimmed
-        _liveVoiceText.value = if (pressEnter) "✓ Typed: \"$trimmed\" ↵" else "✓ Typed: \"$trimmed\""
+        _liveVoiceText.value = if (shouldEnter) "✓ Typed: \"$trimmed\" ↵" else "✓ Typed: \"$trimmed\""
+
+        if (currentSettings.pauseAirMouseWhileTyping) {
+            gyroController.pause()
+        }
 
         viewModelScope.launch {
-            val result = if (pressEnter) {
+            val result = if (shouldEnter) {
                 apiClient.sendTypeAndEnter(
                     ip = currentSettings.serverIp,
                     port = currentSettings.serverPort,
@@ -358,7 +372,11 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
                     checkConnection()
                 }
             }
-            delay(2500)
+            delay(1200)
+            if (currentSettings.pauseAirMouseWhileTyping && !_isSearchModalOpen.value) {
+                gyroController.resume()
+            }
+            delay(1300)
             _liveVoiceText.value = null
         }
     }
@@ -373,24 +391,47 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
 
     fun onScrollDrag(deltaY: Float) {
         val currentSettings = settings.value
+        // Natural vs Traditional scrolling:
+        val dir = if (currentSettings.invertScroll) 1f else -1f
+        val scaledDy = deltaY * dir * (currentSettings.scrollSensitivity / 1.5f).coerceIn(0.4f, 3.0f)
         viewModelScope.launch {
             apiClient.sendScroll(
                 ip = currentSettings.serverIp,
                 port = currentSettings.serverPort,
                 pin = currentSettings.pin,
-                dy = deltaY
+                dy = scaledDy
             )
         }
     }
 
     fun onScrollUp() {
         triggerHapticFeedback()
-        onScrollDrag(120f)
+        val currentSettings = settings.value
+        val dir = if (currentSettings.invertScroll) -1f else 1f
+        val dy = 1.0f * dir * currentSettings.scrollSensitivity
+        viewModelScope.launch {
+            apiClient.sendScroll(
+                ip = currentSettings.serverIp,
+                port = currentSettings.serverPort,
+                pin = currentSettings.pin,
+                dy = dy
+            )
+        }
     }
 
     fun onScrollDown() {
         triggerHapticFeedback()
-        onScrollDrag(-120f)
+        val currentSettings = settings.value
+        val dir = if (currentSettings.invertScroll) 1f else -1f
+        val dy = -1.0f * dir * currentSettings.scrollSensitivity
+        viewModelScope.launch {
+            apiClient.sendScroll(
+                ip = currentSettings.serverIp,
+                port = currentSettings.serverPort,
+                pin = currentSettings.pin,
+                dy = dy
+            )
+        }
     }
 
     fun openSettings() {
@@ -472,11 +513,31 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
 
     fun openSearchModal() {
         triggerHapticFeedback()
+        if (settings.value.pauseAirMouseWhileTyping) {
+            gyroController.pause()
+        }
         _isSearchModalOpen.value = true
     }
 
     fun closeSearchModal() {
         _isSearchModalOpen.value = false
+        if (settings.value.pauseAirMouseWhileTyping && settings.value.gyroEnabled) {
+            gyroController.resume()
+        }
+    }
+
+    fun toggleAirMouse() {
+        val current = settings.value.gyroEnabled
+        val newState = !current
+        triggerHapticFeedback()
+        viewModelScope.launch {
+            settingsRepository.updateAirMouseSettings(enabled = newState)
+            _lastStatusMessage.value = if (newState) "Air Mouse Enabled" else "Air Mouse Disabled"
+            delay(1500)
+            if (_lastStatusMessage.value?.contains("Air Mouse") == true) {
+                _lastStatusMessage.value = null
+            }
+        }
     }
 
     fun setCurrentPage(page: Int) {
@@ -505,6 +566,91 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     fun updateGyroEnabled(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.updateGyroEnabled(enabled)
+        }
+    }
+
+    fun toggleSwapDpadAndTouchpad() {
+        triggerHapticFeedback()
+        val current = settings.value.swapDpadAndTouchpad
+        viewModelScope.launch {
+            settingsRepository.updateSwapDpadAndTouchpad(!current)
+            _lastStatusMessage.value = if (!current) "Layout: D-Pad Top, Touchpad Bottom" else "Layout: Touchpad Top, D-Pad Bottom"
+        }
+    }
+
+    fun updateSwapDpadAndTouchpad(swap: Boolean) {
+        triggerHapticFeedback()
+        viewModelScope.launch {
+            settingsRepository.updateSwapDpadAndTouchpad(swap)
+            _lastStatusMessage.value = if (swap) "Layout: D-Pad Top, Touchpad Bottom" else "Layout: Touchpad Top, D-Pad Bottom"
+        }
+    }
+
+    fun updateTouchpadSettings(
+        showTouchpad: Boolean? = null,
+        tapToClick: Boolean? = null,
+        sensitivity: Float? = null,
+        heightScale: Float? = null,
+        swapDpadAndTouchpad: Boolean? = null
+    ) {
+        viewModelScope.launch {
+            settingsRepository.updateTouchpadSettings(
+                showTouchpad = showTouchpad,
+                tapToClick = tapToClick,
+                sensitivity = sensitivity,
+                heightScale = heightScale,
+                swapDpadAndTouchpad = swapDpadAndTouchpad
+            )
+        }
+    }
+
+    fun updateScrollSettings(
+        showScrollBar: Boolean? = null,
+        sensitivity: Float? = null,
+        invertScroll: Boolean? = null
+    ) {
+        viewModelScope.launch {
+            settingsRepository.updateScrollSettings(
+                showScrollBar = showScrollBar,
+                sensitivity = sensitivity,
+                invertScroll = invertScroll
+            )
+        }
+    }
+
+    fun updateAirMouseSettings(
+        enabled: Boolean? = null,
+        sensitivity: Float? = null,
+        smoothing: Float? = null,
+        pauseWhileTyping: Boolean? = null,
+        showQuickToggle: Boolean? = null
+    ) {
+        viewModelScope.launch {
+            settingsRepository.updateAirMouseSettings(
+                enabled = enabled,
+                sensitivity = sensitivity,
+                smoothing = smoothing,
+                pauseWhileTyping = pauseWhileTyping,
+                showQuickToggle = showQuickToggle
+            )
+            sensitivity?.let { gyroController.updateSensitivity(it) }
+            smoothing?.let { gyroController.updateSmoothing(it) }
+        }
+    }
+
+    fun updateFeatureSettings(
+        keepScreenOn: Boolean? = null,
+        autoEnterOnTyping: Boolean? = null,
+        vibrationEnabled: Boolean? = null,
+        useJoystick: Boolean? = null
+    ) {
+        viewModelScope.launch {
+            settingsRepository.updateFeatureSettings(
+                keepScreenOn = keepScreenOn,
+                autoEnterOnTyping = autoEnterOnTyping,
+                vibrationEnabled = vibrationEnabled,
+                useJoystick = useJoystick
+            )
         }
     }
 

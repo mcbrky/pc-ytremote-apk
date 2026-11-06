@@ -82,6 +82,7 @@ data class RemoteSettings(
     val dpadScale: Float = 1.18f, // Optimized large for 6.4" display (~285dp)
     val touchpadHeightScale: Float = 1.25f, // Optimized large for 6.4" display (~210dp)
     val nowPlayingText: String = "YouTube: Lofi Hip Hop Radio ☕ - Beats to Relax/Study to • Lofi Girl [LIVE]",
-    val useJoystick: Boolean = true
+    val useJoystick: Boolean = true,
+    val swapDpadAndTouchpad: Boolean = false
 )
 

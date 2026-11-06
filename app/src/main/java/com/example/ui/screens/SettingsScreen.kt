@@ -33,13 +33,16 @@ import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Mouse
+import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -108,6 +111,12 @@ fun SettingsScreen(
     onSelectDesignStyle: (com.example.ui.theme.RemoteDesignStyle) -> Unit,
     onUpdateControllerSizes: (dpadScale: Float?, touchpadHeightScale: Float?) -> Unit,
     onToggleUseJoystick: (Boolean) -> Unit,
+    onUpdateTouchpadSettings: (showTouchpad: Boolean?, tapToClick: Boolean?, sensitivity: Float?, heightScale: Float?) -> Unit = { _, _, _, _ -> },
+    onToggleSwapDpadAndTouchpad: (Boolean) -> Unit = {},
+    onUpdateScrollSettings: (showScrollBar: Boolean?, sensitivity: Float?, invertScroll: Boolean?) -> Unit = { _, _, _ -> },
+    onUpdateAirMouseSettings: (enabled: Boolean?, sensitivity: Float?, smoothing: Float?, pauseWhileTyping: Boolean?, showQuickToggle: Boolean?) -> Unit = { _, _, _, _, _ -> },
+    onUpdateFeatureSettings: (keepScreenOn: Boolean?, autoEnterOnTyping: Boolean?, vibrationEnabled: Boolean?, useJoystick: Boolean?) -> Unit = { _, _, _, _ -> },
+    onUpdateDisplaySettings: (showUpNext: Boolean?, showVoiceSearch: Boolean?, showPlaybackControls: Boolean?, showVolumeControls: Boolean?, showAdditionalControls: Boolean?) -> Unit = { _, _, _, _, _ -> },
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
@@ -126,6 +135,12 @@ fun SettingsScreen(
     }
     var localGyroSens by remember(currentSettings.gyroSensitivity) {
         mutableFloatStateOf(currentSettings.gyroSensitivity)
+    }
+    var localGyroSmoothing by remember(currentSettings.gyroSmoothing) {
+        mutableFloatStateOf(currentSettings.gyroSmoothing)
+    }
+    var localScrollSens by remember(currentSettings.scrollSensitivity) {
+        mutableFloatStateOf(currentSettings.scrollSensitivity)
     }
     var localDpadScale by remember(currentSettings.dpadScale) {
         mutableFloatStateOf(currentSettings.dpadScale)
@@ -369,12 +384,33 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.width(12.dp))
 
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = style.displayName,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isSelected) AccentCyan else TextPrimary
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = style.displayName,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) AccentCyan else TextPrimary
+                                )
+
+                                if (style.isLight) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(Color(0xFFE2E8F0))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "LIGHT THEME",
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF0F172A)
+                                        )
+                                    }
+                                }
+                            }
                             Text(
                                 text = style.tagline,
                                 fontSize = 10.sp,
@@ -592,98 +628,287 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Touchpad Height Scale
+            // Controller D-Pad / Joystick Size Scale
             Text(
-                text = "Touchpad Height: ${String.format(Locale.US, "%.0f%%", localTouchpadScale * 100)} (~${(170 * localTouchpadScale).toInt()} dp)",
+                text = "D-Pad / Controller Size: ${String.format(Locale.US, "%.0f%%", localDpadScale * 100)} (~${(240 * localDpadScale).toInt()} dp)",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = TextPrimary
             )
             Slider(
-                value = localTouchpadScale,
+                value = localDpadScale,
                 onValueChange = {
-                    localTouchpadScale = it
-                    onUpdateControllerSizes(null, it)
+                    localDpadScale = it
+                    onUpdateControllerSizes(it, null)
                 },
-                valueRange = 0.80f..1.50f,
+                valueRange = 0.85f..1.35f,
                 colors = sliderColors(),
-                modifier = Modifier.testTag("slider_touchpad_scale")
+                modifier = Modifier.testTag("slider_dpad_scale")
             )
+        }
 
-            // Touchpad Quick Presets
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 4. Touchpad & Scroll Controls Card (টারপ্যাড ও স্ক্রল সেটিংস)
+        SettingsSectionCard(
+            title = "Touchpad & Scroll Controls",
+            icon = Icons.Default.TouchApp
+        ) {
+            // Interchange D-Pad & Touchpad Position (ডি প্যাড উপরে / টাচপ্যাড নিচে অদলবদল)
+            Text(
+                text = "Controller & Touchpad Layout / অবস্থান অদলবদল",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary
+            )
+            Text(
+                text = "ডি প্যাড উপরে এবং টাচপ্যাড নিচে অদলবদল (Interchange) করার অপশন",
+                fontSize = 11.sp,
+                color = TextMuted
+            )
+            Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf(
-                    "Compact" to 0.90f,
-                    "Standard" to 1.15f,
-                    "6.4\" Max Fit" to 1.35f
-                ).forEach { (label, scale) ->
-                    val isCurrent = kotlin.math.abs(localTouchpadScale - scale) < 0.05f
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isCurrent) AccentCyan.copy(alpha = 0.2f) else CardDark)
-                            .border(1.dp, if (isCurrent) AccentCyan else CardBorder, RoundedCornerShape(8.dp))
-                            .clickable {
-                                localTouchpadScale = scale
-                                onUpdateControllerSizes(null, scale)
-                            }
-                            .padding(vertical = 6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
+                // Option 1: Touchpad Top, D-Pad Bottom (Default)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (!currentSettings.swapDpadAndTouchpad) AccentCyan.copy(alpha = 0.2f) else CardDark)
+                        .border(
+                            1.5.dp,
+                            if (!currentSettings.swapDpadAndTouchpad) AccentCyan else CardBorder,
+                            RoundedCornerShape(10.dp)
+                        )
+                        .clickable { onToggleSwapDpadAndTouchpad(false) }
+                        .padding(vertical = 10.dp, horizontal = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = label,
+                            text = "Touchpad Top",
+                            fontSize = 12.sp,
+                            fontWeight = if (!currentSettings.swapDpadAndTouchpad) FontWeight.Bold else FontWeight.Medium,
+                            color = if (!currentSettings.swapDpadAndTouchpad) AccentCyan else TextSecondary
+                        )
+                        Text(
+                            text = "D-Pad Bottom (Default)",
                             fontSize = 10.sp,
-                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isCurrent) AccentCyan else TextSecondary
+                            color = if (!currentSettings.swapDpadAndTouchpad) AccentCyan.copy(alpha = 0.8f) else TextMuted
                         )
                     }
                 }
+
+                // Option 2: D-Pad Top, Touchpad Bottom (Swapped)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (currentSettings.swapDpadAndTouchpad) AccentCyan.copy(alpha = 0.2f) else CardDark)
+                        .border(
+                            1.5.dp,
+                            if (currentSettings.swapDpadAndTouchpad) AccentCyan else CardBorder,
+                            RoundedCornerShape(10.dp)
+                        )
+                        .clickable { onToggleSwapDpadAndTouchpad(true) }
+                        .padding(vertical = 10.dp, horizontal = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "D-Pad Top ⬆",
+                            fontSize = 12.sp,
+                            fontWeight = if (currentSettings.swapDpadAndTouchpad) FontWeight.Bold else FontWeight.Medium,
+                            color = if (currentSettings.swapDpadAndTouchpad) AccentCyan else TextSecondary
+                        )
+                        Text(
+                            text = "Touchpad Bottom ⬇",
+                            fontSize = 10.sp,
+                            color = if (currentSettings.swapDpadAndTouchpad) AccentCyan.copy(alpha = 0.8f) else TextMuted
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            SettingSwitchRow(
+                title = "D-Pad on Top & Touchpad on Bottom",
+                subtitle = "ডি প্যাড স্ক্রিনের উপরে এবং টাচপ্যাড নিচে ইন্টারচেঞ্জ করুন",
+                checked = currentSettings.swapDpadAndTouchpad,
+                testTag = "switch_swap_dpad_touchpad",
+                onCheckedChange = { onToggleSwapDpadAndTouchpad(it) }
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Touchpad Show / Hide Toggle
+            SettingSwitchRow(
+                title = "Show Touchpad on Remote",
+                subtitle = "রিমোটের টাচপ্যাড প্রদর্শন বা হাইড করুন",
+                checked = currentSettings.showTouchpad,
+                testTag = "switch_show_touchpad",
+                onCheckedChange = { onUpdateTouchpadSettings(it, null, null, null) }
+            )
+
+            if (currentSettings.showTouchpad) {
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Tap to Click Toggle
+                SettingSwitchRow(
+                    title = "Touchpad Tap to Click",
+                    subtitle = "টারপ্যাডে ট্যাপ করে কম্পিউটার ক্লিক (অফ রাখলে ড্র্যাগিংয়ে ভুল ক্লিক হবে না)",
+                    checked = currentSettings.touchpadTapToClick,
+                    testTag = "switch_touchpad_tap_click",
+                    onCheckedChange = { onUpdateTouchpadSettings(null, it, null, null) }
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Touchpad Pointer Speed
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Touchpad Sensitivity",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = "${String.format(Locale.US, "%.1f", localMouseSens)}x",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AccentCyan
+                    )
+                }
+                Slider(
+                    value = localMouseSens,
+                    onValueChange = {
+                        localMouseSens = it
+                        onUpdateMouseSensitivity(it)
+                        onUpdateTouchpadSettings(null, null, it, null)
+                    },
+                    valueRange = 0.5f..3.5f,
+                    colors = sliderColors(),
+                    modifier = Modifier.testTag("slider_mouse_sensitivity")
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Touchpad Height Scale
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Touchpad Height Scale",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = "${String.format(Locale.US, "%.0f%%", localTouchpadScale * 100)}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AccentCyan
+                    )
+                }
+                Slider(
+                    value = localTouchpadScale,
+                    onValueChange = {
+                        localTouchpadScale = it
+                        onUpdateControllerSizes(null, it)
+                        onUpdateTouchpadSettings(null, null, null, it)
+                    },
+                    valueRange = 0.80f..1.50f,
+                    colors = sliderColors(),
+                    modifier = Modifier.testTag("slider_touchpad_scale")
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Vertical Screen Scroll Bar Toggle
+            SettingSwitchRow(
+                title = "Show Vertical Scroll Slider (SCRL)",
+                subtitle = "রিমোটের ডানপাশে উপর-নিচ স্ক্রল স্লাইডার অন বা অফ রাখুন",
+                checked = currentSettings.showScrollBar,
+                testTag = "switch_show_scroll_bar",
+                onCheckedChange = { onUpdateScrollSettings(it, null, null) }
+            )
+
+            if (currentSettings.showScrollBar) {
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Scroll Sensitivity
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Scroll Speed & Sensitivity",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = "${String.format(Locale.US, "%.1f", localScrollSens)}x",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AccentCyan
+                    )
+                }
+                Slider(
+                    value = localScrollSens,
+                    onValueChange = {
+                        localScrollSens = it
+                        onUpdateScrollSettings(null, it, null)
+                    },
+                    valueRange = 0.5f..4.0f,
+                    colors = sliderColors(),
+                    modifier = Modifier.testTag("slider_scroll_sensitivity")
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Invert Scroll Direction
+                SettingSwitchRow(
+                    title = "Invert Scroll Direction",
+                    subtitle = "ন্যাচারাল স্ক্রলিং (আঙুল নিচে টানলে পেজ নিচে স্ক্রল হবে)",
+                    checked = currentSettings.invertScroll,
+                    testTag = "switch_invert_scroll",
+                    onCheckedChange = { onUpdateScrollSettings(null, null, it) }
+                )
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 4. Air Mouse & Sensor Settings Card
+        // 5. Air Mouse & Gyroscope Settings Card (এয়ার মাউস সেটিংস)
         SettingsSectionCard(
             title = "Air Mouse & Sensors",
-            icon = Icons.Default.Mouse
+            icon = Icons.Default.NearMe
         ) {
-            // Mouse Sensitivity
-            Text(
-                text = "Touchpad Sensitivity: ${String.format(Locale.US, "%.1f", localMouseSens)}x",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = TextPrimary
-            )
-            Slider(
-                value = localMouseSens,
-                onValueChange = {
-                    localMouseSens = it
-                    onUpdateMouseSensitivity(it)
-                },
-                valueRange = 0.5f..3.5f,
-                colors = sliderColors(),
-                modifier = Modifier.testTag("slider_mouse_sensitivity")
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
             // Gyroscope Air Mouse Toggle
             SettingSwitchRow(
                 title = "Gyroscope Air Mouse",
-                subtitle = "Tilt phone to control cursor smoothly like a pointer",
+                subtitle = "ফোন হাতে নাড়িয়ে কম্পিউটারের মাউস কার্সর চালান",
                 checked = currentSettings.gyroEnabled,
                 testTag = "switch_gyroscope",
                 onCheckedChange = { onUpdateGyroEnabled(it) }
             )
 
-            // Gyroscope Speed/Sensitivity
             if (currentSettings.gyroEnabled) {
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Air Mouse Speed
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -707,22 +932,141 @@ fun SettingsScreen(
                     onValueChange = {
                         localGyroSens = it
                         onUpdateGyroSensitivity(it)
+                        onUpdateAirMouseSettings(null, it, null, null, null)
                     },
                     valueRange = 0.5f..4.0f,
                     colors = sliderColors(),
                     modifier = Modifier.testTag("slider_gyro_sensitivity")
                 )
-            }
 
-            Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Air Mouse Smoothness Filter
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Pointer Smoothness (Anti-Jitter)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = "${(localGyroSmoothing * 100).toInt()}% (Ultra Smooth)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AccentCyan
+                    )
+                }
+                Slider(
+                    value = localGyroSmoothing,
+                    onValueChange = {
+                        localGyroSmoothing = it
+                        onUpdateAirMouseSettings(null, null, it, null, null)
+                    },
+                    valueRange = 0.50f..0.95f,
+                    colors = sliderColors(),
+                    modifier = Modifier.testTag("slider_gyro_smoothing")
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Auto-pause during typing
+                SettingSwitchRow(
+                    title = "Auto-Pause while Typing",
+                    subtitle = "টাইপ বা ভয়েস ইনপুটের সময় মাউস ফ্রিজ রাখা (কার্সর লাফালাফি বন্ধ করবে)",
+                    checked = currentSettings.pauseAirMouseWhileTyping,
+                    testTag = "switch_pause_typing",
+                    onCheckedChange = { onUpdateAirMouseSettings(null, null, null, it, null) }
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Quick Air Mouse button on remote
+                SettingSwitchRow(
+                    title = "Quick Button on Remote Bar",
+                    subtitle = "রিমোটের উপরের বারে ১-ট্যাপে এয়ার মাউস অন/অফ বাটন",
+                    checked = currentSettings.showQuickAirMouseToggle,
+                    testTag = "switch_quick_air_mouse_btn",
+                    onCheckedChange = { onUpdateAirMouseSettings(null, null, null, null, it) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 6. Useful Remote Features & Display Toggles Card (দরকারি অপশন - অন/অফ)
+        SettingsSectionCard(
+            title = "Remote Features & Display",
+            icon = Icons.Default.Widgets
+        ) {
+            // Keep Phone Screen Awake
+            SettingSwitchRow(
+                title = "Keep Phone Screen Awake",
+                subtitle = "রিমোট ব্যবহারের সময় স্ক্রিনের আলো নিভবে না",
+                checked = currentSettings.keepScreenOn,
+                testTag = "switch_keep_screen_on",
+                onCheckedChange = { onUpdateFeatureSettings(it, null, null, null) }
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Auto-Enter on Typing / Voice
+            SettingSwitchRow(
+                title = "Auto-Enter on Typing & Voice",
+                subtitle = "লেখা বা ভয়েস পাঠানোর সাথে সাথে কম্পিউটারে Enter চাপা",
+                checked = currentSettings.autoEnterOnTyping,
+                testTag = "switch_auto_enter",
+                onCheckedChange = { onUpdateFeatureSettings(null, it, null, null) }
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Haptic Vibration Toggle
             SettingSwitchRow(
-                title = "Haptic Vibration",
-                subtitle = "Tactile click feedback on buttons and gestures",
+                title = "Haptic Vibration Feedback",
+                subtitle = "বাটন ও স্লাইডার স্পর্শ করলে ট্যাক্টাইল ভাইব্রেশন ফিডব্যাক",
                 checked = currentSettings.vibrationEnabled,
                 testTag = "switch_vibration",
-                onCheckedChange = { onUpdateVibrationEnabled(it) }
+                onCheckedChange = {
+                    onUpdateVibrationEnabled(it)
+                    onUpdateFeatureSettings(null, null, it, null)
+                }
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Show Volume Rocker Bar Toggle
+            SettingSwitchRow(
+                title = "Show Volume Rocker Bar",
+                subtitle = "নিচের বামপাশে স্লাইডেবল ভলিউম বার প্রদর্শন বা হাইড করুন",
+                checked = currentSettings.showVolumeControls,
+                testTag = "switch_show_volume",
+                onCheckedChange = { onUpdateDisplaySettings(null, null, null, it, null) }
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Show Playback Controls
+            SettingSwitchRow(
+                title = "Show Playback Controls",
+                subtitle = "প্লে/পজ, প্রিভিয়াস ও নেক্সট মিডিয়া বাটন অন বা অফ রাখুন",
+                checked = currentSettings.showPlaybackControls,
+                testTag = "switch_show_playback",
+                onCheckedChange = { onUpdateDisplaySettings(null, null, it, null, null) }
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Show Additional PC Keys
+            SettingSwitchRow(
+                title = "Show Additional PC Keys",
+                subtitle = "এক্সট্রা কিবোর্ড কী (Esc, Tab, Home, F11) অন বা অফ রাখুন",
+                checked = currentSettings.showAdditionalControls,
+                testTag = "switch_show_additional",
+                onCheckedChange = { onUpdateDisplaySettings(null, null, null, null, it) }
             )
         }
 
@@ -843,8 +1187,9 @@ fun SettingsScreen(
     if (showUpdateDialog) {
         val pythonServerScript = """
 # ========================================================
-# ytremote Windows PC Server (v2.8.5)
-# Direct YouTube Voice Search, Page Scroll, Media & Mouse
+# ytremote Windows PC Server (v2.9.0)
+# Universal Keyboard Typing, Bengali/Unicode Paste,
+# Ultra-Smooth Air Mouse, Smooth Wheel Scroll & Media Control
 # ========================================================
 import http.server, json, sys, ctypes, urllib.parse, webbrowser, time
 
@@ -856,34 +1201,82 @@ VK_MAP = {
     'ENTER': 0x0D, 'ESC': 0x1B, 'BACKSPACE': 0x08, 'SPACE': 0x20,
     'PAGE_UP': 0x21, 'PAGE_DOWN': 0x22, 'HOME': 0x24, 'END': 0x23,
     'TAB': 0x09, 'VOLUME_UP': 0xAF, 'VOLUME_DOWN': 0xAE, 'MUTE': 0xAD,
-    'MEDIA_PLAY_PAUSE': 0xB3, 'MEDIA_NEXT': 0xB0, 'MEDIA_PREV': 0xB1
+    'MEDIA_PLAY_PAUSE': 0xB3, 'MEDIA_NEXT': 0xB0, 'MEDIA_PREV': 0xB1,
+    'F11': 0x7A, 'CONTROL': 0x11, 'ALT': 0x12, 'SHIFT': 0x10, 'DELETE': 0x2E
 }
+
+u32 = ctypes.windll.user32
+k32 = ctypes.windll.kernel32
 
 def press_vk(code):
     try:
-        ctypes.windll.user32.keybd_event(code, 0, 0, 0)
-        time.sleep(0.02)
-        ctypes.windll.user32.keybd_event(code, 0, 2, 0)
+        u32.keybd_event(code, 0, 0, 0)
+        time.sleep(0.015)
+        u32.keybd_event(code, 0, 2, 0)
     except Exception:
         pass
 
-def type_string(text):
-    for ch in text:
-        try:
-            code = ord(ch)
-            # Windows KEYEVENTF_UNICODE (0x0004) supports English, Bengali and all Unicode
-            ctypes.windll.user32.keybd_event(0, code, 0x0004, 0)
-            time.sleep(0.004)
-            ctypes.windll.user32.keybd_event(0, code, 0x0004 | 0x0002, 0)
-            time.sleep(0.004)
-        except Exception:
-            pass
+def press_ctrl_v():
+    try:
+        u32.keybd_event(0x11, 0, 0, 0)      # Ctrl down
+        time.sleep(0.01)
+        u32.keybd_event(0x56, 0, 0, 0)      # 'V' down
+        time.sleep(0.02)
+        u32.keybd_event(0x56, 0, 2, 0)      # 'V' up
+        time.sleep(0.01)
+        u32.keybd_event(0x11, 0, 2, 0)      # Ctrl up
+    except Exception:
+        pass
+
+def paste_text_to_pc(text, do_enter=False):
+    # Method 1: Clipboard paste with CF_UNICODETEXT
+    # 100% reliable for English, Bengali, Hindi, symbols, URLs & emojis
+    pasted = False
+    try:
+        CF_UNICODETEXT = 13
+        GMEM_MOVEABLE = 0x0002
+        if u32.OpenClipboard(0):
+            u32.EmptyClipboard()
+            encoded = (text + '\0').encode('utf-16le')
+            h_mem = k32.GlobalAlloc(GMEM_MOVEABLE, len(encoded))
+            if h_mem:
+                p_mem = k32.GlobalLock(h_mem)
+                ctypes.memmove(p_mem, encoded, len(encoded))
+                k32.GlobalUnlock(h_mem)
+                u32.SetClipboardData(CF_UNICODETEXT, h_mem)
+            u32.CloseClipboard()
+            time.sleep(0.02)
+            press_ctrl_v()
+            pasted = True
+    except Exception as e:
+        print(f"[Clipboard paste error: {e}]")
+
+    # Method 2: Direct character typing fallback if clipboard is locked
+    if not pasted:
+        for ch in text:
+            try:
+                code = ord(ch)
+                if code < 128:
+                    vk = u32.VkKeyScanW(code)
+                    if vk != -1:
+                        press_vk(vk & 0xFF)
+                        continue
+                u32.keybd_event(0, code, 0x0004, 0)
+                time.sleep(0.003)
+                u32.keybd_event(0, code, 0x0004 | 0x0002, 0)
+                time.sleep(0.003)
+            except Exception:
+                pass
+
+    if do_enter:
+        time.sleep(0.05)
+        press_vk(VK_MAP['ENTER'])
 
 class RemoteHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/health':
             self.send_response(200); self.end_headers()
-            self.wfile.write(b'{"status":"ok","version":"2.8.5"}')
+            self.wfile.write(b'{"status":"ok","version":"2.9.0"}')
         elif self.path == '/volume':
             self.send_response(200); self.send_header('Content-Type','application/json'); self.end_headers()
             self.wfile.write(b'{"volume": 50}')
@@ -897,37 +1290,43 @@ class RemoteHandler(http.server.BaseHTTPRequestHandler):
             action = data.get('action')
             key = data.get('key')
             query = data.get('query') or data.get('text')
-            dy = data.get('dy', 0)
+            do_enter = bool(data.get('enter', False))
+            dy = float(data.get('dy', 0))
 
             if action == 'search_youtube' and query:
                 print(f"[YouTube Search] Instant query: {query}")
                 webbrowser.open(f"https://www.youtube.com/results?search_query={urllib.parse.quote(query)}")
+            elif action == 'type' and query:
+                print(f"[Universal Typing] Text: {query} (Enter={do_enter})")
+                paste_text_to_pc(query, do_enter=do_enter)
             elif action == 'scroll':
                 print(f"[Screen Scroll] dy: {dy}")
+                # Windows standard mouse wheel delta: 120 per notch
+                wheel_delta = int(round(dy * 120))
                 try:
-                    ctypes.windll.user32.mouse_event(0x0800, 0, 0, int(-dy * 6), 0)
+                    u32.mouse_event(0x0800, 0, 0, wheel_delta, 0)
                 except Exception:
                     pass
-                if dy > 0:
-                    press_vk(VK_MAP['PAGE_UP'])
-                else:
-                    press_vk(VK_MAP['PAGE_DOWN'])
+                if abs(wheel_delta) < 60:
+                    if dy > 0:
+                        press_vk(VK_MAP['PAGE_UP'])
+                    elif dy < 0:
+                        press_vk(VK_MAP['PAGE_DOWN'])
             elif action == 'key' and key in VK_MAP:
                 press_vk(VK_MAP[key])
-            elif action == 'type' and query:
-                type_string(query)
             elif action == 'mouse':
-                dx = int(data.get('dx', 0) * 1.5)
-                dy = int(data.get('dy', 0) * 1.5)
+                # 1:1 smooth delta mapping without jumpy server multiplier
+                dx = int(round(float(data.get('dx', 0))))
+                dy_m = int(round(float(data.get('dy', 0))))
                 try:
-                    ctypes.windll.user32.mouse_event(0x0001, dx, dy, 0, 0)
+                    u32.mouse_event(0x0001, dx, dy_m, 0, 0)
                 except Exception:
                     pass
             elif action == 'click':
                 try:
-                    ctypes.windll.user32.mouse_event(0x0002, 0, 0, 0, 0)
+                    u32.mouse_event(0x0002, 0, 0, 0, 0)
                     time.sleep(0.02)
-                    ctypes.windll.user32.mouse_event(0x0004, 0, 0, 0, 0)
+                    u32.mouse_event(0x0004, 0, 0, 0, 0)
                 except Exception:
                     pass
 
@@ -935,7 +1334,7 @@ class RemoteHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(b'{"status":"success"}')
 
 server = http.server.HTTPServer(('0.0.0.0', PORT), RemoteHandler)
-print(f"ytremote Server v2.8.5 running on port {PORT} with PIN {PIN}")
+print(f"ytremote Server v2.9.0 running on port {PORT} with PIN {PIN}")
 server.serve_forever()
         """.trimIndent()
 
@@ -954,13 +1353,13 @@ server.serve_forever()
                     )
                     Column {
                         Text(
-                            text = "Up to Date: v2.8.0",
+                            text = "Up to Date: v2.9.0",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
                         Text(
-                            text = "Latest Cloud Build Active",
+                            text = "Universal Typing & Smooth Controls Active",
                             fontSize = 11.sp,
                             color = StatusSuccess
                         )
@@ -973,16 +1372,16 @@ server.serve_forever()
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        text = "What's New in v2.8.0:",
+                        text = "What's New in v2.9.0:",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = AccentCyan
                     )
                     Text(
-                        text = "• Instant YouTube TV Voice Search: Speaks directly into YouTube search results without intermediate popups.\n" +
-                                "• Vertical Screen Scroll Slider: Replaced CH rocker with a smooth vertical slider for scrolling up and down.\n" +
-                                "• Touchpad & Joystick 6.4\" Full Display Adaptive Sizing.\n" +
-                                "• Two-way Windows Volume sync & Air Mouse precision.",
+                        text = "• Universal Keyboard & Voice: 100% accurate Bengali & English typing into any active search bar or app using Win32 Unicode clipboard paste.\n" +
+                                "• Anti-Jitter Air Mouse: Soft-knee deadband, dynamic EMA smoothing, and auto-pause while typing so cursor never jumps.\n" +
+                                "• Touchpad & Scroll Settings: On/off toggles, tap-to-click toggle, speed sliders, and natural invert scroll.\n" +
+                                "• Handy Remote Options: Keep screen awake, auto-enter, vibration, and section toggles.",
                         fontSize = 11.sp,
                         color = Color(0xFFD1D5DB),
                         lineHeight = 16.sp

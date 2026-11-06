@@ -47,6 +47,7 @@ class SettingsRepository(private val context: Context) {
         val NOW_PLAYING_TEXT = stringPreferencesKey("now_playing_text")
         val USE_JOYSTICK = booleanPreferencesKey("use_joystick")
         val JOYSTICK_SENSITIVITY = floatPreferencesKey("joystick_sensitivity")
+        val SWAP_DPAD_AND_TOUCHPAD = booleanPreferencesKey("swap_dpad_and_touchpad")
     }
 
     val settingsFlow: Flow<RemoteSettings> = context.dataStore.data.map { preferences ->
@@ -81,7 +82,8 @@ class SettingsRepository(private val context: Context) {
             touchpadHeightScale = preferences[PreferencesKeys.TOUCHPAD_HEIGHT_SCALE] ?: 1.25f,
             nowPlayingText = preferences[PreferencesKeys.NOW_PLAYING_TEXT]
                 ?: "YouTube: Lofi Hip Hop Radio ☕ - Beats to Relax/Study to • Lofi Girl [LIVE]",
-            useJoystick = preferences[PreferencesKeys.USE_JOYSTICK] ?: true
+            useJoystick = preferences[PreferencesKeys.USE_JOYSTICK] ?: true,
+            swapDpadAndTouchpad = preferences[PreferencesKeys.SWAP_DPAD_AND_TOUCHPAD] ?: false
         )
     }
 
@@ -166,17 +168,25 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
+    suspend fun updateSwapDpadAndTouchpad(swap: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SWAP_DPAD_AND_TOUCHPAD] = swap
+        }
+    }
+
     suspend fun updateTouchpadSettings(
         showTouchpad: Boolean? = null,
         tapToClick: Boolean? = null,
         sensitivity: Float? = null,
-        heightScale: Float? = null
+        heightScale: Float? = null,
+        swapDpadAndTouchpad: Boolean? = null
     ) {
         context.dataStore.edit { preferences ->
             showTouchpad?.let { preferences[PreferencesKeys.SHOW_TOUCHPAD] = it }
             tapToClick?.let { preferences[PreferencesKeys.TOUCHPAD_TAP_TO_CLICK] = it }
             sensitivity?.let { preferences[PreferencesKeys.MOUSE_SENSITIVITY] = it }
             heightScale?.let { preferences[PreferencesKeys.TOUCHPAD_HEIGHT_SCALE] = it }
+            swapDpadAndTouchpad?.let { preferences[PreferencesKeys.SWAP_DPAD_AND_TOUCHPAD] = it }
         }
     }
 
